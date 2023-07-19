@@ -1,0 +1,413 @@
+#version 450 core
+layout(local_size_x = 8,local_size_y = 8,local_size_z = 8) in;
+
+layout(binding = 0, rgba8) uniform image3D texR;
+layout(binding = 1, rgba8) uniform image3D texG;
+layout(binding = 2, rgba8) uniform image3D texB;
+layout(binding = 3, rgba8) uniform image3D texR1;
+layout(binding = 4, rgba8) uniform image3D texG1;
+layout(binding = 5, rgba8) uniform image3D texB1;
+layout(binding = 6, rgba8) uniform image3D texBlock;
+
+const float PI = 3.14159265359;
+vec4 cosineCoeffs= vec4(
+					0.886218,
+					0.0,
+					1.02328,
+					0.0);
+
+int Factorial(int n);
+float P(int l, int m, float x);
+float K(int l, int m);
+float SH(int l, int m, float theta, float phi);
+mat3 Zrotate(float angle);
+vec4 RotateSHCoefficients(vec4 unrotatedCoeffs, float theta, float phi);
+vec4 LightProR(float theta, float phi, vec3 direction, vec3 Nf, ivec3 pos);
+vec4 LightProG(float theta, float phi, vec3 direction, vec3 Nf, ivec3 pos);
+vec4 LightProB(float theta, float phi, vec3 direction, vec3 Nf, ivec3 pos);
+ivec3 posTrans(vec3 pos);
+void LightPro6x1(ivec3 pos, inout vec4 sumR, inout vec4 sumG, inout vec4 sumB);
+
+uniform vec3 minPos;
+uniform vec3 maxPos;
+uniform int Step;
+
+uniform bool first;
+
+void main()
+{
+    ivec3 Pos = ivec3(gl_GlobalInvocationID.xyz);
+    vec4 valueR = imageLoad(texR1,Pos);
+    vec4 valueG = imageLoad(texG1,Pos);
+    vec4 valueB = imageLoad(texB1,Pos);
+
+    LightPro6x1(Pos,valueR,valueG,valueB);
+    imageStore(texR1,Pos,valueR);
+    imageStore(texG1,Pos,valueG);
+    imageStore(texB1,Pos,valueB);
+}
+
+void LightPro6x1(ivec3 pos, inout vec4 sumR, inout vec4 sumG, inout vec4 sumB)
+{
+    //R
+    vec3 direction =vec3(0,-1,0);
+    sumR+=LightProR(90.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+    sumR+=LightProR(60.0f,270.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumR+=LightProR(120.0f,270.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumR+=LightProR(90.0f,240.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumR+=LightProR(90.0f,300.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+
+    direction =vec3(0,1,0);
+    sumR+=LightProR(90.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumR+=LightProR(60.0f,90.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumR+=LightProR(120.0f,90.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumR+=LightProR(90.0f,60.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumR+=LightProR(90.0f,120.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+
+    direction =vec3(-1,0,0);
+    sumR+=LightProR(90.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumR+=LightProR(60.0f,180.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumR+=LightProR(120.0f,180.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumR+=LightProR(90.0f,150.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumR+=LightProR(90.0f,210.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+
+    direction =vec3(1,0,0);
+    sumR+=LightProR(90.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumR+=LightProR(60.0f,0.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumR+=LightProR(120.0f,0.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumR+=LightProR(90.0f,-30.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+    sumR+=LightProR(90.0f,30.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+
+    direction =vec3(0,0,-1);
+    sumR+=LightProR(180.0f,0.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumR+=LightProR(150.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumR+=LightProR(150.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumR+=LightProR(150.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumR+=LightProR(150.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+
+    direction =vec3(0,0,1);
+    sumR+=LightProR(0.0f,0.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumR+=LightProR(30.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumR+=LightProR(30.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumR+=LightProR(30.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumR+=LightProR(30.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+
+    //G
+    direction =vec3(0,-1,0);
+    sumG+=LightProG(90.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+    sumG+=LightProG(60.0f,270.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumG+=LightProG(120.0f,270.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumG+=LightProG(90.0f,240.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumG+=LightProG(90.0f,300.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+
+    direction =vec3(0,1,0);
+    sumG+=LightProG(90.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumG+=LightProG(60.0f,90.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumG+=LightProG(120.0f,90.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumG+=LightProG(90.0f,60.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumG+=LightProG(90.0f,120.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+
+    direction =vec3(-1,0,0);
+    sumG+=LightProG(90.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumG+=LightProG(60.0f,180.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumG+=LightProG(120.0f,180.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumG+=LightProG(90.0f,150.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumG+=LightProG(90.0f,210.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+
+    direction =vec3(1,0,0);
+    sumG+=LightProG(90.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumG+=LightProG(60.0f,0.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumG+=LightProG(120.0f,0.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumG+=LightProG(90.0f,-30.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+    sumG+=LightProG(90.0f,30.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+
+    direction =vec3(0,0,-1);
+    sumG+=LightProG(180.0f,0.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumG+=LightProG(150.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumG+=LightProG(150.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumG+=LightProG(150.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumG+=LightProG(150.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+
+    direction =vec3(0,0,1);
+    sumG+=LightProG(0.0f,0.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumG+=LightProG(30.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumG+=LightProG(30.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumG+=LightProG(30.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumG+=LightProG(30.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+
+    //B
+    direction =vec3(0,-1,0);
+    sumB+=LightProB(90.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+    sumB+=LightProB(60.0f,270.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumB+=LightProB(120.0f,270.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumB+=LightProB(90.0f,240.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumB+=LightProB(90.0f,300.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+
+    direction =vec3(0,1,0);
+    sumB+=LightProB(90.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumB+=LightProB(60.0f,90.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumB+=LightProB(120.0f,90.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumB+=LightProB(90.0f,60.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumB+=LightProB(90.0f,120.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+
+    direction =vec3(-1,0,0);
+    sumB+=LightProB(90.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumB+=LightProB(60.0f,180.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumB+=LightProB(120.0f,180.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumB+=LightProB(90.0f,150.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumB+=LightProB(90.0f,210.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+
+    direction =vec3(1,0,0);
+    sumB+=LightProB(90.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumB+=LightProB(60.0f,0.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumB+=LightProB(120.0f,0.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumB+=LightProB(90.0f,-30.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+    sumB+=LightProB(90.0f,30.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+
+    direction =vec3(0,0,-1);
+    sumB+=LightProB(180.0f,0.0f,direction,vec3(0,0,-1),pos-ivec3(direction));
+    sumB+=LightProB(150.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumB+=LightProB(150.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumB+=LightProB(150.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumB+=LightProB(150.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+
+    direction =vec3(0,0,1);
+    sumB+=LightProB(0.0f,0.0f,direction,vec3(0,0,1),pos-ivec3(direction));
+    sumB+=LightProB(30.0f,0.0f,direction,vec3(1,0,0),pos-ivec3(direction));
+    sumB+=LightProB(30.0f,90.0f,direction,vec3(0,1,0),pos-ivec3(direction));
+    sumB+=LightProB(30.0f,180.0f,direction,vec3(-1,0,0),pos-ivec3(direction));
+    sumB+=LightProB(30.0f,270.0f,direction,vec3(0,-1,0),pos-ivec3(direction));
+}
+
+ivec3 posTrans(vec3 pos)
+{
+	vec3 result = pos-(maxPos+minPos)/2;
+	result /=(maxPos-minPos);
+	result*=Step;
+	result+=vec3(Step/2);
+	return ivec3(result);
+}
+
+vec4 LightProR(float theta, float phi, vec3 direction, vec3 Nf, ivec3 pos)
+{
+    theta*=PI/180.0f;
+    phi*=PI/180.0f;
+    vec4 ywc = vec4(SH(0,0,theta,phi),SH(1,-1,theta,phi),SH(1,0,theta,phi),SH(1,1,theta,phi));
+
+    vec4 I = imageLoad(texR,pos);
+    float Iwc = dot(I,ywc);
+
+    if(!first)
+    {
+        vec3 posFace = vec3(pos)+direction+Nf*0.5+vec3(0.5);
+        vec4 B=vec4(0.0);
+        for(int i=-1;i<=1;i+=2)
+        {
+            for(int j=-1;j<=1;j+=2)
+            {
+                vec3 deltaPos;
+                if(Nf.x!=0)
+                    deltaPos = vec3(0,i,j);
+                else if(Nf.y!=0)
+                    deltaPos = vec3(i,0,j);
+                else 
+                    deltaPos = vec3(i,j,0);
+    
+                B+=imageLoad(texBlock,ivec3(posFace+deltaPos*0.5));
+            }
+        }
+        B/=4.0;
+        float Bwc = dot(B,ywc);
+    
+        Iwc*=(1.0-Bwc);
+    }
+
+    float dwf = 0.41;
+    float fluxf = dwf/PI*Iwc;
+
+    float fluxl = fluxf/PI;
+
+    float thetaFace = acos(Nf.z);
+    float phiFace =atan(Nf.y,Nf.x)+PI;
+    vec4 cosine = RotateSHCoefficients(cosineCoeffs, thetaFace, phiFace);
+    vec4 Il = cosine*fluxl;
+
+    return Il;
+}
+
+vec4 LightProG(float theta, float phi, vec3 direction, vec3 Nf, ivec3 pos)
+{
+    theta*=PI/180.0f;
+    phi*=PI/180.0f;
+    vec4 ywc = vec4(SH(0,0,theta,phi),SH(1,-1,theta,phi),SH(1,0,theta,phi),SH(1,1,theta,phi));
+
+    vec4 I = imageLoad(texG,pos);
+    float Iwc = dot(I,ywc);
+
+    if(!first)
+    {
+        vec3 posFace = vec3(pos)+direction+Nf*0.5+vec3(0.5);
+        vec4 B=vec4(0.0);
+        for(int i=-1;i<=1;i+=2)
+        {
+            for(int j=-1;j<=1;j+=2)
+            {
+                vec3 deltaPos;
+                if(Nf.x!=0)
+                    deltaPos = vec3(0,i,j);
+                else if(Nf.y!=0)
+                    deltaPos = vec3(i,0,j);
+                else 
+                    deltaPos = vec3(i,j,0);
+    
+                B+=imageLoad(texBlock,ivec3(posFace+deltaPos*0.5));
+            }
+        }
+        B/=4.0;
+        float Bwc = dot(B,ywc);
+    
+        Iwc*=(1.0-Bwc);
+    }
+
+    float dwf = 0.41;
+    float fluxf = dwf/PI*Iwc;
+
+    float fluxl = fluxf/PI;
+
+    float thetaFace = acos(Nf.z);
+    float phiFace =  atan(Nf.y,Nf.x)+PI;
+    vec4 cosine = RotateSHCoefficients(cosineCoeffs, thetaFace, phiFace);
+    vec4 Il = cosine*fluxl;
+
+    return Il;
+}
+
+vec4 LightProB(float theta, float phi, vec3 direction, vec3 Nf, ivec3 pos)
+{
+    theta*=PI/180.0f;
+    phi*=PI/180.0f;
+    vec4 ywc = vec4(SH(0,0,theta,phi),SH(1,-1,theta,phi),SH(1,0,theta,phi),SH(1,1,theta,phi));
+
+    vec4 I = imageLoad(texB,pos);
+    float Iwc = dot(I,ywc);
+
+    if(!first)
+    {
+        vec3 posFace = vec3(pos)+direction+Nf*0.5+vec3(0.5);
+        vec4 B=vec4(0.0);
+        for(int i=-1;i<=1;i+=2)
+        {
+            for(int j=-1;j<=1;j+=2)
+            {
+                vec3 deltaPos;
+                if(Nf.x!=0)
+                    deltaPos = vec3(0,i,j);
+                else if(Nf.y!=0)
+                    deltaPos = vec3(i,0,j);
+                else 
+                    deltaPos = vec3(i,j,0);
+    
+                B+=imageLoad(texBlock,ivec3(posFace+deltaPos*0.5));
+            }
+        }
+        B/=4.0;
+        float Bwc = dot(B,ywc);
+    
+        Iwc*=(1.0-Bwc);
+    }
+
+    float dwf = 0.41;
+    float fluxf = dwf/PI*Iwc;
+
+    float fluxl = fluxf/PI;
+
+    float thetaFace = acos(Nf.z);
+    float phiFace =  atan(Nf.y,Nf.x)+PI;
+    vec4 cosine = RotateSHCoefficients(cosineCoeffs, thetaFace, phiFace);
+    vec4 Il = cosine*fluxl;
+
+    return Il;
+}
+
+int Factorial(int n)
+{
+    if (n <= 1)
+        return 1;
+
+    int k = n;
+    int fact = n;
+    while (--k > 1)
+    {
+        fact *= k;
+    }
+    return fact;
+}
+
+float P(int l, int m, float x)
+{
+    //l=m
+    float Pmm = 1.0;
+
+    if (m > 0)
+    {
+        float item = sqrt(1.0 - x * x);
+        for (int i = 1; i <= m; i++)
+        {
+            Pmm *= item * (2.0 * i - 1.0) * (-1.0);
+        }
+    }
+
+    if (l == m)
+        return Pmm;
+
+    //l=m+1
+    float Pmp1m = (2.0 * m + 1.0) * x * Pmm;
+    if (l == m + 1)
+        return Pmp1m;
+
+    //l>m+1
+    float Plm = 1.0;
+    for (int i = m + 2; i <= l; i++)
+    {
+        Plm = x * (2.0 * i - 1.0) * Pmp1m - (i + m - 1.0) * Pmm;
+        Plm /= (i - m);
+        Pmm = Pmp1m;
+        Pmp1m = Plm;
+    }
+    return Plm;
+}
+
+float K(int l, int m)
+{
+    float item = (2.0 * l + 1.0) / (4.0 * PI) * Factorial(l - m) / Factorial(l + m);
+    return sqrt(item);
+}
+
+float SH(int l, int m, float theta, float phi)
+{
+    if (m == 0)
+        return K(l, m) * P(l, m, cos(theta));
+
+    if (m > 0)
+        return K(l, m) * P(l, m, cos(theta)) * sqrt(2.0) * cos(m * phi);
+
+    return K(l, -m) * P(l, -m, cos(theta)) * sqrt(2.0) * sin(-m * phi);
+}
+vec4 RotateSHCoefficients(vec4 unrotatedCoeffs, float theta, float phi)
+{
+	vec4 rotatedCoeffs = vec4(0.0);
+
+	//Band 0 coefficient is unchanged
+	rotatedCoeffs.x = unrotatedCoeffs.x;
+
+	//Rotate band 1 coefficients
+	mat3 Xrotate90 = mat3(0,-1,0,1,0,0,0,0,1);
+	rotatedCoeffs.yzw = Zrotate(phi)*transpose(Xrotate90)*Zrotate(theta)*Xrotate90*unrotatedCoeffs.yzw;
+
+	return rotatedCoeffs;
+}
+
+mat3 Zrotate(float angle)
+{
+	return mat3(cos(angle),0,-sin(angle),0,1,0,sin(angle),0,cos(angle));
+}
